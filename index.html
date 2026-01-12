@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sol's RNG: Audio Update</title>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Courier+New&family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #050505;
+            --font: 'Rajdhani', sans-serif;
+            --aura-color: #5555ff;
+        }
+
+        body {
+            margin: 0;
+            height: 100vh;
+            background-color: var(--bg-color);
+            color: white;
+            font-family: var(--font);
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* CANVAS & BG */
+        #bg-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: -2; }
+        #bg-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background: linear-gradient(to bottom, transparent, rgba(0,0,0,0.8)); transition: background-color 1s ease; }
+        #lightning-flash { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: white; opacity: 0; z-index: -1; pointer-events: none; }
+
+        /* CUTSCENE CONTAINER */
+        #cutscene { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 2000; display: none; justify-content: center; align-items: center; flex-direction: column; overflow: hidden; }
+        
+        /* --- MASTER ANIMATION: BUILD UP --- */
+        .star-buildup {
+            animation: starExpandRotate 6.2s cubic-bezier(0.5, 0, 0.2, 1) forwards;
+            position: absolute; display: flex; justify-content: center; align-items: center; width: 0; height: 0; z-index: 20;
+        }
+        @keyframes starExpandRotate {
+            0% { transform: scale(0.2) rotate(0deg); opacity: 0; } 10% { transform: scale(0.8) rotate(20deg); opacity: 1; }
+            50% { transform: scale(1.2) rotate(180deg); } 85% { transform: scale(2.5) rotate(720deg); }
+            100% { transform: scale(35) rotate(1440deg); opacity: 1; }
+        }
+
+        /* --- LUMINOSITY SCENE --- */
+        .luminosity-scene { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle at center, #0a0a0a 0%, #000 100%); display: flex; justify-content: center; align-items: center; overflow: hidden; font-family: 'Cinzel', serif; }
+        .lum-god-rays { position: absolute; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+        .lum-ray { position: absolute; top: -50%; width: 100px; height: 200%; background: linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(200,240,255,0.15) 50%, rgba(255,255,255,0) 100%); filter: blur(20px); transform: rotate(15deg); opacity: 0; animation: rayFlash 6s infinite ease-in-out; }
+        @keyframes rayFlash { 0%,100% { opacity: 0; } 50% { opacity: 1; } }
+        .lum-chain-group { position: absolute; width: 100%; height: 100%; z-index: 5; opacity: 0; animation: lumChainsIn 4s forwards; }
+        .lum-chain { position: absolute; width: 1500px; height: 60px; background: url('data:image/svg+xml;utf8,<svg width="80" height="40" viewBox="0 0 80 40" xmlns="http://www.w3.org/2000/svg"><path d="M15,10 Q30,10 30,20 Q30,30 15,30 Q0,30 0,20 Q0,10 15,10 M50,10 Q65,10 65,20 Q65,30 50,30 Q35,30 35,20 Q35,10 50,10" stroke="%2388a" fill="none" stroke-width="6"/><path d="M15,10 Q30,10 30,20 Q30,30 15,30 Q0,30 0,20 Q0,10 15,10 M50,10 Q65,10 65,20 Q65,30 50,30 Q35,30 35,20 Q35,10 50,10" stroke="%23000" fill="none" stroke-width="2"/></svg>'); background-size: 80px 40px; filter: drop-shadow(0 0 10px rgba(0,0,0,0.8)); }
+        .lc-1 { top: -30%; left: -20%; transform: rotate(35deg); animation: lumChainMove1 20s linear infinite; filter: brightness(0.7); }
+        .lc-2 { bottom: -30%; right: -20%; transform: rotate(35deg); animation: lumChainMove2 20s linear infinite reverse; filter: brightness(0.7); }
+        .lc-3 { top: 10%; right: -30%; transform: rotate(-25deg); width: 1800px; opacity: 0.6; animation: lumChainMove2 25s linear infinite; filter: blur(2px); }
+        .lc-4 { bottom: 10%; left: -30%; transform: rotate(-25deg); width: 1800px; opacity: 0.6; animation: lumChainMove1 25s linear infinite reverse; filter: blur(2px); }
+        .lum-star-bg { position: absolute; width: 150px; height: 150px; background: white; clip-path: polygon(50% 0%, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0% 50%, 40% 40%); box-shadow: 0 0 50px 20px cyan; animation: lumStarPulse 3s infinite alternate, lumStarFadeOut 1s forwards 4s; z-index: 4; filter: drop-shadow(0 0 20px cyan); }
+        .lum-dialogue-container { position: absolute; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; z-index: 10; pointer-events: none; }
+        .lum-text { position: absolute; font-size: 28px; letter-spacing: 5px; color: #fff; text-transform: uppercase; text-shadow: 0 0 10px cyan; opacity: 0; font-family: 'Courier New', monospace; font-weight: bold; text-align: center; width: 100%; }
+        .lt-1 { animation: lumTextShow 3.5s forwards 4.5s; } .lt-2 { animation: lumTextShow 3.5s forwards 8.5s; }
+        .lum-beam { position: absolute; width: 150px; height: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.9), transparent); top: 0; opacity: 0; animation: lumBeamDrop 1s forwards 11.5s; filter: blur(8px); z-index: 2; box-shadow: 0 0 50px cyan; }
+        .lum-mandala-container { position: absolute; width: 700px; height: 700px; display: flex; justify-content: center; align-items: center; opacity: 0; transform: scale(0.5); animation: lumMandalaAppear 6s forwards 12s; z-index: 3; }
+        .lum-ring { position: absolute; border-radius: 50%; box-shadow: 0 0 20px rgba(0, 255, 255, 0.3); }
+        .lr-outer { width: 100%; height: 100%; border: 5px solid rgba(255, 255, 255, 0.8); animation: rotateStar 40s linear infinite; }
+        .lr-mid { width: 80%; height: 80%; border: 2px solid rgba(0, 255, 255, 0.5); animation: rotateStar 20s linear infinite reverse; }
+        .lum-square { position: absolute; width: 65%; height: 65%; border: 3px solid white; box-shadow: 0 0 15px cyan, inset 0 0 15px cyan; }
+        .ls-1 { transform: rotate(0deg); } .ls-2 { transform: rotate(45deg); }
+        .lum-final-title { position: absolute; font-size: 70px; color: white; font-weight: 400; letter-spacing: 8px; text-shadow: 0 0 30px cyan, 0 0 60px white; opacity: 0; z-index: 20; text-align: center; animation: lumTitleIn 3s forwards 13s; font-family: 'Cinzel', serif; }
+
+        /* --- RESTORED SCENES CSS --- */
+        .star-container { position: relative; width: 0; height: 0; display: flex; justify-content: center; align-items: center; z-index: 10; }
+        .spike { position: absolute; background: white; border-radius: 50%; box-shadow: 0 0 20px var(--aura-color), 0 0 40px var(--aura-color); }
+        .spike.vertical { width: 15px; height: 400px; } .spike.horizontal { width: 400px; height: 15px; } .spike.diag-1 { width: 8px; height: 250px; transform: rotate(45deg); } .spike.diag-2 { width: 8px; height: 250px; transform: rotate(-45deg); }
+        .core-glow { position: absolute; width: 40px; height: 40px; background: white; border-radius: 50%; box-shadow: 0 0 30px 10px white, 0 0 60px 30px var(--aura-color), 0 0 100px 60px var(--aura-color); animation: corePulse 0.5s infinite alternate; }
+
+        /* Scenes */
+        .archangel-scene { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle at center, #ffd700 0%, #000 90%); display: flex; justify-content: center; align-items: center; }
+        .arch-rays { position: absolute; width: 200%; height: 200%; background: repeating-conic-gradient(rgba(255, 215, 0, 0.1) 0deg, rgba(255, 215, 0, 0.1) 15deg, transparent 15deg, transparent 30deg); animation: rotateStar 60s linear infinite; z-index: 1; }
+        .arch-cross-group { position: absolute; display: flex; justify-content: center; align-items: center; z-index: 10; }
+        .ac-vert { position: absolute; width: 50px; height: 400px; background: linear-gradient(90deg, #d4af37, #fff, #d4af37); border: 2px solid white; box-shadow: 0 0 50px gold; }
+        .ac-horiz { position: absolute; width: 250px; height: 50px; background: linear-gradient(180deg, #d4af37, #fff, #d4af37); border: 2px solid white; box-shadow: 0 0 50px gold; top: -50px; }
+        .ac-ring { position: absolute; width: 180px; height: 180px; border: 8px solid #fff; border-radius: 50%; box-shadow: 0 0 30px gold; top: -115px; z-index: -1; }
+        .ac-gem { position: absolute; width: 40px; height: 40px; background: #fff; transform: rotate(45deg); top: -50px; border: 2px solid gold; box-shadow: 0 0 50px 20px white; z-index: 11; }
+        .arch-feather { position: absolute; width: 20px; height: 40px; background: white; border-radius: 50% 50% 0 50%; top: -100px; animation: featherFall 4s linear infinite; filter: drop-shadow(0 0 5px gold); z-index: 5; }
+
+        .glitch-scene { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; display: flex; justify-content: center; align-items: center; perspective: 1000px; overflow: hidden; }
+        .glitch-bg-text { position: absolute; top: 20%; left: 5%; font-family: 'Courier New', monospace; color: #3b82f6; font-size: 20px; opacity: 0.7; z-index: 2; text-shadow: 0 0 5px #3b82f6; }
+        .glitch-cube-wrapper { position: absolute; width: 300px; height: 300px; transform-style: preserve-3d; animation: cubeSpin 15s linear infinite; }
+        .glitch-cube-wrapper.small { width: 150px; height: 150px; animation: cubeSpin 10s linear infinite reverse; left: 20%; top: 20%; opacity: 0.5; }
+        .glitch-cube-wrapper.medium { width: 200px; height: 200px; animation: cubeSpin 12s linear infinite; right: 20%; bottom: 20%; opacity: 0.5; }
+        .gc-face { position: absolute; width: 100%; height: 100%; border: 2px solid #2563eb; background: rgba(37, 99, 235, 0.2); box-shadow: inset 0 0 20px rgba(37, 99, 235, 0.5); }
+        .gc-front { transform: rotateY(0deg) translateZ(150px); } .gc-back { transform: rotateY(180deg) translateZ(150px); } .gc-right { transform: rotateY(90deg) translateZ(150px); } .gc-left { transform: rotateY(-90deg) translateZ(150px); } .gc-top { transform: rotateX(90deg) translateZ(150px); } .gc-bottom { transform: rotateX(-90deg) translateZ(150px); }
+        .small .gc-front, .small .gc-back, .small .gc-right, .small .gc-left, .small .gc-top, .small .gc-bottom { transform: rotateY(0deg) translateZ(75px); } .small .gc-back { transform: rotateY(180deg) translateZ(75px); } .small .gc-right { transform: rotateY(90deg) translateZ(75px); } .small .gc-left { transform: rotateY(-90deg) translateZ(75px); } .small .gc-top { transform: rotateX(90deg) translateZ(75px); } .small .gc-bottom { transform: rotateX(-90deg) translateZ(75px); }
+        .medium .gc-front, .medium .gc-back, .medium .gc-right, .medium .gc-left, .medium .gc-top, .medium .gc-bottom { transform: rotateY(0deg) translateZ(100px); } .medium .gc-back { transform: rotateY(180deg) translateZ(100px); } .medium .gc-right { transform: rotateY(90deg) translateZ(100px); } .medium .gc-left { transform: rotateY(-90deg) translateZ(100px); } .medium .gc-top { transform: rotateX(90deg) translateZ(100px); } .medium .gc-bottom { transform: rotateX(-90deg) translateZ(100px); }
+        .glitch-core { width: 40px; height: 40px; background: white; border-radius: 50%; box-shadow: 0 0 50px 20px #3b82f6, 0 0 100px 60px #1d4ed8; }
+
+        .virtual-scene { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, #200 0%, #000 100%); display: flex; justify-content: center; align-items: center; overflow: hidden; }
+        .virt-bg-grid { position: absolute; width: 200%; height: 200%; background-image: linear-gradient(rgba(255,0,0,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,0,0,0.1) 1px, transparent 1px); background-size: 50px 50px; transform: perspective(500px) rotateX(60deg) translateY(-100px) translateZ(-200px); animation: gridMove 1s linear infinite; }
+        .virt-text-wrapper { position: absolute; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; mix-blend-mode: normal; pointer-events: none; }
+        .virt-big-text { font-family: 'Courier New', monospace; font-weight: 900; font-size: 100px; color: red; letter-spacing: 5px; animation: glitchText 0.1s infinite; text-shadow: 5px 0 0 white; }
+        .virt-sub { font-family: 'Rajdhani', sans-serif; font-size: 30px; color: white; letter-spacing: 20px; margin-top: 10px; font-weight: bold; text-shadow: 0 0 10px red; }
+        .virt-core { width: 60px; height: 60px; background: #fff; border-radius: 50%; box-shadow: 0 0 50px 20px red; z-index: 2; position: absolute; }
+        .virt-square { position: absolute; border: 5px solid red; width: 200px; height: 200px; box-shadow: 0 0 20px red; } .virt-square:nth-child(1) { transform: rotate(0deg); } .virt-square:nth-child(2) { transform: rotate(45deg); width: 150px; height: 150px; border-color: white; }
+        .virt-beam { position: absolute; width: 1000px; height: 20px; background: linear-gradient(90deg, transparent, red, transparent); animation: blink 0.1s infinite; } .virt-beam.v { transform: rotate(90deg); }
+
+        .chromatic-scene { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, #000022 0%, #000 100%); display: flex; justify-content: center; align-items: center; }
+        .chrom-eq-circle { position: absolute; width: 600px; height: 600px; border-radius: 50%; border: 2px dashed rgba(0, 255, 255, 0.3); animation: rotateStar 10s linear infinite; }
+        .chrom-bars { position: absolute; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
+        .chrom-bar { position: absolute; width: 10px; height: 100px; background: cyan; bottom: 50%; transform-origin: center bottom; animation: eqJump 0.5s infinite; }
+        .chrom-diamond { width: 150px; height: 150px; background: white; transform: rotate(45deg); box-shadow: 0 0 50px 10px cyan, 0 0 100px 30px blue; position: absolute; }
+        .chrom-ray { position: absolute; width: 600px; height: 4px; background: linear-gradient(90deg, transparent, white, transparent); } .chrom-ray.v { transform: rotate(90deg); }
+        .chrom-text { position: absolute; font-family: 'Cinzel', serif; color: #fff; font-size: 24px; text-shadow: 0 0 10px cyan; animation: textFlyOut 6s forwards; z-index: 20; }
+
+        .hv-scene { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #111; overflow: hidden; display: flex; justify-content: center; align-items: center; }
+        .hv-clouds { position: absolute; width: 100%; height: 100%; background: radial-gradient(circle, #333 0%, #000 90%); opacity: 0.8; }
+        .hv-lightning { position: absolute; width: 400px; height: 600px; background: white; clip-path: polygon(45% 0, 60% 0, 40% 40%, 65% 40%, 35% 100%, 50% 100%, 70% 50%, 45% 50%); opacity: 0; filter: drop-shadow(0 0 20px white); }
+        .hv-l1 { left: 10%; top: -10%; transform: rotate(15deg) scale(0.8); animation: flashAnim 0.2s infinite 0.5s; } .hv-l2 { right: 10%; top: -20%; transform: rotate(-15deg) scale(1.2); animation: flashAnim 0.3s infinite 0.1s; } .hv-l3 { left: 40%; top: -30%; transform: scale(0.5); animation: flashAnim 1s infinite 0.7s; }
+        .hv-numbers { position: absolute; font-family: 'Courier New', monospace; font-size: 150px; color: rgba(255,255,255,0.1); font-weight: bold; width: 100%; text-align: center; display: flex; justify-content: center; gap: 50px; z-index: 5; }
+        .hv-num { animation: glitchText 0.2s infinite; }
+        .hv-orb { width: 100px; height: 100px; background: white; border-radius: 50%; box-shadow: 0 0 50px 20px yellow, 0 0 100px 50px white; position: absolute; }
+        .hv-ring { position: absolute; width: 300px; height: 300px; border: 5px solid yellow; border-radius: 50%; border-left-color: transparent; border-right-color: transparent; }
+
+        .star-aura-scene { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+        .star-bg-beams { position: absolute; width: 100%; height: 100%; background: linear-gradient(90deg, #000 0%, #ff00ff 10%, #000 20%, #00ffff 30%, #000 40%, #ff00ff 50%, #000 60%, #00ffff 70%, #000 80%, #ff00ff 90%, #000 100%); opacity: 0.3; filter: blur(20px); animation: mistMove 5s linear infinite; }
+        .star-main { position: absolute; width: 300px; height: 300px; background: linear-gradient(135deg, #00ffff, #ff00ff); clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); box-shadow: 0 0 50px white; }
+        .star-outline { position: absolute; width: 320px; height: 320px; background: white; clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); z-index: -1; }
+        .star-glow-center { position: absolute; width: 50px; height: 50px; background: white; border-radius: 50%; box-shadow: 0 0 50px 20px white; animation: corePulse 0.5s infinite; }
+
+        .poseidon-scene { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle at center, #001f3f 0%, #000 100%); display: flex; justify-content: center; align-items: center; overflow: hidden; }
+        .pos-caustics { position: absolute; width: 100%; height: 100%; background: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIj48ZmlsdGVyIGlkPSJuIj48ZmlsdGVyIGlkPSJuIj48ZmVUdXJidWxlbmNlIHR5cGU9InR1cmJ1bGVuY2UiIGJhc2VGcmVxdWVuY3k9IjAuMDUiIG51bU9jdGF2ZXM9IjIiIHN0aXRjaFRpbGVzPSJzdGl0Y2giLz48L2ZpbHRlcj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsdGVyPSJ1cmwoI24pIiBvcGFjaXR5PSIwLjMiLz48L3N2Zz4='); opacity: 0.2; transform: scale(2); animation: mistMove 10s linear infinite; }
+        .pos-bubbles { position: absolute; width: 100%; height: 100%; }
+        .pos-bubble { position: absolute; background: rgba(255, 255, 255, 0.3); border-radius: 50%; bottom: -20px; animation: riseParticle 4s linear infinite; }
+        .trident-staff { position: absolute; width: 10px; height: 400px; background: gold; box-shadow: 0 0 20px cyan; } .trident-u { position: absolute; width: 150px; height: 100px; border-bottom: 10px solid gold; border-left: 10px solid gold; border-right: 10px solid gold; border-radius: 0 0 50% 50%; bottom: 50px; box-shadow: 0 0 20px cyan; }
+        .trident-tip { position: absolute; width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 40px solid gold; } .tip-mid { top: -220px; } .tip-left { top: -50px; left: -80px; } .tip-right { top: -50px; right: -80px; }
+        .pos-glow { position: absolute; width: 100px; height: 100px; background: cyan; border-radius: 50%; filter: blur(40px); opacity: 0.5; }
+
+        .eternal-scene { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, #1e293b 0%, #000 100%); display: flex; justify-content: center; align-items: center; flex-direction: column; }
+        .et-vortex { position: absolute; width: 600px; height: 600px; background: radial-gradient(circle, transparent 30%, rgba(186, 230, 253, 0.1) 50%, transparent 70%); border-radius: 50%; animation: rotateStar 20s linear infinite; filter: blur(20px); z-index: 1; }
+        .et-ring { position: absolute; width: 400px; height: 400px; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 50%; animation: rotateStar 10s linear infinite reverse; z-index: 2; }
+        .et-spike { position: absolute; background: linear-gradient(to top, transparent, #e0f2fe, white, #e0f2fe, transparent); width: 6px; height: 500px; filter: blur(1px); } .et-spike.r1 { transform: rotate(0deg); } .et-spike.r2 { transform: rotate(45deg); } .et-spike.r3 { transform: rotate(90deg); } .et-spike.r4 { transform: rotate(135deg); }
+        .et-notes-container { position: absolute; bottom: 20%; display: flex; gap: 40px; z-index: 50; width: 100%; justify-content: center; pointer-events: none; }
+        .et-note { font-size: 60px; color: #bae6fd; text-shadow: 0 0 15px #38bdf8, 0 0 30px #0ea5e9; animation: noteFloat 2s ease-in-out infinite; }
+
+        .exoplanet-scene { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle at center, #020617 0%, #000 90%); display: flex; justify-content: center; align-items: center; }
+        .exo-star-core { position: absolute; width: 20px; height: 20px; background: white; border-radius: 50%; box-shadow: 0 0 60px 30px #4ade80, 0 0 120px 60px rgba(0, 255, 0, 0.4); z-index: 21; }
+        .exo-ray { position: absolute; background: linear-gradient(90deg, transparent, #fff, transparent); height: 4px; width: 1200px; box-shadow: 0 0 25px #4ade80; } .exo-ray.v { transform: rotate(90deg); } .exo-ray.d1 { transform: rotate(45deg); height: 2px; width: 800px; opacity: 0.7; } .exo-ray.d2 { transform: rotate(-45deg); height: 2px; width: 800px; opacity: 0.7; }
+        .exo-dust { position: absolute; width: 2px; height: 2px; background: white; border-radius: 50%; animation: spaceDust 5s linear infinite; }
+
+        .oblivion-scene { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle at center, #2a0000 0%, #000 100%); display: flex; justify-content: center; align-items: center; }
+        .ob-splatter { position: absolute; background: #380000; opacity: 0.8; filter: blur(2px); animation: splatterPulse 4s infinite alternate; } .ob-splatter.s1 { top: -10%; right: -10%; width: 600px; height: 600px; clip-path: polygon(20% 0%, 80% 0%, 100% 20%, 85% 50%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 15% 50%, 0% 20%); transform: rotate(45deg); } .ob-splatter.s2 { top: -20%; left: 0%; width: 500px; height: 400px; clip-path: polygon(10% 20%, 90% 10%, 80% 80%, 30% 90%); transform: rotate(-15deg); }
+        .ob-ray { position: absolute; background: linear-gradient(to top, transparent, #ff0000, #fff, #ff0000, transparent); width: 10px; height: 700px; border-radius: 50%; box-shadow: 0 0 40px #ff0000; } .ob-ray.h { transform: rotate(90deg); } .ob-ray.d1 { transform: rotate(45deg); height: 400px; width: 6px; } .ob-ray.d2 { transform: rotate(-45deg); height: 400px; width: 6px; }
+        .ob-core { width: 40px; height: 40px; background: #fff; border-radius: 50%; box-shadow: 0 0 60px 20px #ff0000, 0 0 120px 60px #800000; z-index: 11; position:absolute; }
+        .ob-particle { position: absolute; width: 4px; height: 4px; background: red; box-shadow: 0 0 5px red; border-radius: 50%; animation: riseParticle 3s linear infinite; }
+
+        .sovereign-scene { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, #1e3a8a 0%, #020617 90%); display: flex; justify-content: center; align-items: center; }
+        .sov-mist { position: absolute; width: 100%; height: 100%; background: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPjxmaWx0ZXIgaWQ9Im4iPjxmZVR1cmJ1bGVuY2UgdHlwZT0iZnJhY3RhbE5vaXNlIiBiYXNlRnJlcXVlbmN5PSIwLjAxIiBudW1PY3RhdmVzPSI1IiBzdGl0Y2hUaWxlcz0ic3RpdGNoIi8+PC9maWx0ZXI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsdGVyPSJ1cmwoI24pIiBvcGFjaXR5PSIwLjIiLz48L3N2Zz4='); opacity: 0.3; animation: mistMove 20s linear infinite; }
+        .sov-circle-group { position: absolute; width: 600px; height: 600px; display: flex; justify-content: center; align-items: center; animation: rotateStar 30s linear infinite; }
+        .sov-ring { position: absolute; border: 2px solid rgba(147, 197, 253, 0.3); border-radius: 50%; width: 100%; height: 100%; box-shadow: 0 0 20px rgba(59, 130, 246, 0.3); }
+        .sov-runes { position: absolute; width: 80%; height: 80%; border: 2px dashed rgba(147, 197, 253, 0.5); border-radius: 50%; animation: rotateStar 10s linear infinite reverse; }
+        .sov-ray { position: absolute; background: linear-gradient(to top, transparent, #fff, transparent); width: 5px; height: 500px; box-shadow: 0 0 25px #60a5fa; } .sov-ray.h { transform: rotate(90deg); } .sov-ray.d1 { transform: rotate(45deg); height:300px; width:3px; } .sov-ray.d2 { transform: rotate(-45deg); height:300px; width:3px; }
+        .sov-core { position: absolute; width: 50px; height: 50px; background: #fff; border-radius: 50%; box-shadow: 0 0 50px 15px #3b82f6, 0 0 100px 40px #1d4ed8; }
+        .sov-constellation { position: absolute; bottom: 50px; left: 50px; width: 200px; height: 200px; opacity: 0.6; }
+        .const-dot { position: absolute; width: 6px; height: 6px; background: white; border-radius: 50%; box-shadow: 0 0 5px white; }
+        .const-line { position: absolute; height: 1px; background: rgba(255,255,255,0.5); transform-origin: 0 0; }
+
+        .gargantua-scene { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; background: black; }
+        .g-singularity { width: 150px; height: 150px; background: black; border-radius: 50%; box-shadow: 0 0 20px #ff8c00, inset 0 0 40px #000; z-index: 10; animation: gPulse 2s infinite alternate; position: absolute; }
+        .g-disk { position: absolute; width: 600px; height: 200px; background: radial-gradient(ellipse at center, rgba(255,140,0,0.8) 0%, rgba(78,52,46,0.5) 60%, transparent 80%); border-radius: 50%; transform: rotate(-15deg); z-index: 5; animation: gSpin 10s linear infinite; filter: blur(10px); }
+        .g-rays { position: absolute; width: 800px; height: 800px; background: conic-gradient(from 0deg, transparent, rgba(255,165,0,0.2), transparent 30%); animation: rotateStar 20s linear infinite; z-index: 1; }
+        .g-particles { position: absolute; width: 100%; height: 100%; top: 0; left: 0; background-image: radial-gradient(white 2px, transparent 2px); background-size: 60px 60px; opacity: 0.5; animation: gSuck 1s linear infinite; z-index: 0; }
+
+        .impeached-scene { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; background: linear-gradient(to top, #240046, black); overflow: hidden; }
+        .imp-crown { width: 250px; height: 200px; background: linear-gradient(to bottom, #d500f9, #4a00e0); clip-path: polygon(0% 100%, 0% 20%, 25% 100%, 50% 0%, 75% 100%, 100% 20%, 100% 100%); filter: drop-shadow(0 0 30px #d500f9); animation: impFloat 3s ease-in-out infinite; z-index: 10; position: absolute; }
+        .imp-square { position: absolute; width: 40px; height: 40px; border: 2px solid #bc13fe; box-shadow: 0 0 15px #bc13fe; animation: impGlitchAnim 2s infinite; opacity: 0; z-index: 5; }
+
+        .memory-scene { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; background: radial-gradient(circle, #1a002f 0%, #000 90%); }
+        .mem-spike { position: absolute; width: 20px; height: 400px; background: linear-gradient(to top, transparent, #bc13fe, white, #bc13fe, transparent); border-radius: 50%; filter: blur(2px); } .mem-rot-1 { transform: rotate(0deg); } .mem-rot-2 { transform: rotate(45deg); } .mem-rot-3 { transform: rotate(90deg); } .mem-rot-4 { transform: rotate(135deg); }
+        .mem-core { width: 80px; height: 80px; background: white; border-radius: 50%; box-shadow: 0 0 50px 20px #9400d3; position:absolute; z-index:11; }
+        .mem-shard { position: absolute; width: 4px; height: 40px; background: rgba(188, 19, 254, 0.5); box-shadow: 0 0 10px #bc13fe; animation: memFloat 5s linear infinite; z-index: 1; }
+
+        /* Animation Keyframes */
+        @keyframes lumChainsIn { 0% { opacity: 0; } 100% { opacity: 0.6; } }
+        @keyframes lumChainMove1 { 0% { transform: rotate(35deg) translateX(0); } 100% { transform: rotate(35deg) translateX(-100px); } }
+        @keyframes lumChainMove2 { 0% { transform: rotate(35deg) translateX(0); } 100% { transform: rotate(35deg) translateX(100px); } }
+        @keyframes lumStarPulse { 0% { transform: scale(1); box-shadow: 0 0 30px 10px cyan; } 100% { transform: scale(1.5); box-shadow: 0 0 80px 30px white; } }
+        @keyframes lumStarFadeOut { to { opacity: 0; transform: scale(3); } }
+        @keyframes lumTextShow { 0% { opacity: 0; letter-spacing: 15px; } 20% { opacity: 1; letter-spacing: 5px; } 80% { opacity: 1; filter: blur(0px); } 100% { opacity: 0; filter: blur(10px); } }
+        @keyframes lumBeamDrop { 0% { height: 0; opacity: 0; } 50% { opacity: 1; } 100% { height: 200%; opacity: 0.8; } }
+        @keyframes lumMandalaAppear { 0% { opacity: 0; transform: scale(0.2) rotate(0deg); } 20% { opacity: 1; transform: scale(1) rotate(45deg); } 100% { opacity: 1; transform: scale(1.1) rotate(90deg); filter: brightness(1.5); } }
+        @keyframes lumTitleIn { 0% { opacity: 0; transform: scale(1.2); } 100% { opacity: 1; transform: scale(1); } }
+        @keyframes corePulse { from { transform: scale(1); opacity: 0.8; } to { transform: scale(1.5); opacity: 1; } }
+        @keyframes rotateStar { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes featherFall { 0% { top: -10%; opacity: 0; transform: rotate(0deg) translateX(0); } 10% { opacity: 1; } 100% { top: 110%; opacity: 0; transform: rotate(360deg) translateX(50px); } }
+        @keyframes cubeSpin { 0% { transform: rotateX(0) rotateY(0); } 100% { transform: rotateX(360deg) rotateY(360deg); } }
+        @keyframes noteFloat { 0%, 100% { transform: translateY(0); opacity: 0.5; } 50% { transform: translateY(-20px); opacity: 1; } }
+        @keyframes spaceDust { 0% { opacity: 0; transform: scale(0); } 50% { opacity: 1; } 100% { opacity: 0; transform: scale(1.5) translate(100px, 100px); } }
+        @keyframes splatterPulse { 0% { transform: scale(1) rotate(45deg); opacity: 0.8; } 100% { transform: scale(1.05) rotate(45deg); opacity: 0.9; } }
+        @keyframes riseParticle { 0% { bottom: -10px; opacity: 1; } 100% { bottom: 100%; opacity: 0; } }
+        @keyframes mistMove { 0% { transform: translateX(-10%); } 50% { transform: translateX(10%); } 100% { transform: translateX(-10%); } }
+        @keyframes glitchText { 0% { transform: translate(0); } 20% { transform: translate(-5px, 5px); } 40% { transform: translate(-5px, -5px); } 60% { transform: translate(5px, 5px); } 80% { transform: translate(5px, -5px); } 100% { transform: translate(0); } }
+        @keyframes gridMove { 0% { transform: perspective(500px) rotateX(60deg) translateY(0) translateZ(-200px); } 100% { transform: perspective(500px) rotateX(60deg) translateY(50px) translateZ(-200px); } }
+        @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+        @keyframes eqJump { 0%, 100% { height: 50px; } 50% { height: 150px; } }
+        @keyframes textFlyOut { 0% { opacity: 0; transform: scale(0.5); } 20% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(3) translate(100px, -100px); } }
+        @keyframes gPulse { 0% { transform: scale(1); box-shadow: 0 0 20px #ff8c00; } 100% { transform: scale(1.05); box-shadow: 0 0 50px #ff4500; } }
+        @keyframes gSpin { 0% { transform: rotate(-15deg) scale(1); } 50% { transform: rotate(-15deg) scale(1.1); } 100% { transform: rotate(-15deg) scale(1); } }
+        @keyframes gSuck { 0% { transform: scale(1.5); opacity: 0; } 50% { opacity: 0.5; } 100% { transform: scale(0); opacity: 0; } }
+        @keyframes impFloat { 0%,100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-10px) scale(1.05); } }
+        @keyframes impGlitchAnim { 0% { opacity: 0; transform: scale(0.5) rotate(0deg); } 50% { opacity: 0.8; transform: scale(1) rotate(45deg); } 100% { opacity: 0; transform: scale(1.5) rotate(90deg); } }
+        @keyframes memFloat { 0% { opacity: 0; transform: translateY(0); } 50% { opacity: 1; } 100% { opacity: 0; transform: translateY(-100px) rotate(180deg); } }
+
+        /* UI */
+        #cutscene-text { position: absolute; bottom: 20%; font-size: 30px; letter-spacing: 15px; text-transform: uppercase; font-weight: 800; text-shadow: 0 0 10px white; opacity: 0; animation: fadeInText 1s forwards 1s; z-index: 20; }
+        .breakthrough-anim { color: #ff0000 !important; text-shadow: 2px 2px 0px #000, -1px -1px 0 #fff !important; animation: glitchText 0.2s infinite !important; font-size: 40px !important; }
+        .lucky-anim { color: #00ff00 !important; text-shadow: 0 0 20px lime, 0 0 10px white !important; font-size: 50px !important; animation: corePulse 0.5s infinite !important; }
+        .flash-bang { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: white; opacity: 0; pointer-events: none; z-index: 100; }
+        .flash-active { animation: flashAnim 0.5s forwards; }
+        @keyframes fadeInText { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes flashAnim { 0% { opacity: 0; } 50% { opacity: 1; } 100% { opacity: 0; } }
+
+        /* HUD */
+        #hud { position: relative; width: 100%; height: 100%; display: grid; grid-template-rows: 60px 1fr 100px; grid-template-columns: 250px 1fr 250px; padding: 20px; box-sizing: border-box; }
+        .sidebar { grid-row: 2; grid-column: 1; display: flex; flex-direction: column; gap: 10px; justify-content: center; }
+        .menu-btn { background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 15px; font-family: var(--font); font-size: 18px; text-transform: uppercase; letter-spacing: 2px; cursor: pointer; transition: 0.2s; text-align: left; clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); }
+        .menu-btn:hover { background: white; color: black; padding-left: 25px; }
+        .btn-stelle { border-color: #a855f7; color: #d8b4fe; }
+        .center-stage { grid-row: 2; grid-column: 2; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+        #aura-name { font-size: 80px; font-weight: 800; text-transform: uppercase; margin: 0; line-height: 1; letter-spacing: 3px; transition: color 0.3s; text-shadow: 0 0 20px black; }
+        #aura-chance { font-size: 24px; color: #aaa; margin-top: 10px; font-weight: 500; background: rgba(0,0,0,0.7); padding: 5px 20px; border-radius: 20px; border: 1px solid #333; }
+        #biome-wrapper { margin-top: 10px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.6); padding: 5px 15px; border-radius: 4px; display: flex; align-items: center; gap: 10px; }
+        #biome-name { font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
+        .controls { grid-row: 3; grid-column: 2; display: flex; gap: 20px; justify-content: center; align-items: flex-start; }
+        .roll-btn { background: black; color: white; border: 2px solid white; padding: 15px 50px; font-size: 24px; font-weight: 800; font-family: var(--font); text-transform: uppercase; cursor: pointer; transition: 0.1s; box-shadow: 0 0 15px rgba(255,255,255,0.1); }
+        .roll-btn:hover { background: white; color: black; box-shadow: 0 0 30px white; }
+        .auto-btn { background: rgba(0,0,0,0.5); color: #aaa; border: 2px solid #555; padding: 15px 30px; font-size: 18px; font-weight: 700; font-family: var(--font); cursor: pointer; }
+        .auto-btn.active { border-color: #00ff00; color: #00ff00; box-shadow: 0 0 15px #00ff00; }
+        .stats-panel { grid-row: 3; grid-column: 1; display: flex; flex-direction: column; justify-content: flex-end; font-size: 18px; gap: 5px; color: #ddd; }
+        .stats-right { grid-row: 3; grid-column: 3; display: flex; flex-direction: column; justify-content: flex-start; align-items: flex-end; font-size: 18px; gap: 5px; padding-top: 20px; }
+        .val { font-weight: bold; color: white; } .gold { color: #ffd700; } .pity-text { color: #00ff00; font-weight: bold; margin-bottom: 5px; }
+
+        /* MODALS & OTHERS */
+        .modal-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px); z-index: 1000; display: none; justify-content: center; align-items: center; }
+        .modal { background: #0f0f0f; border: 1px solid #333; width: 850px; height: 650px; display: flex; flex-direction: column; box-shadow: 0 0 50px rgba(0,0,0,0.8); border-radius: 8px; }
+        .modal-header { background: #151515; padding: 20px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
+        .modal-title { font-size: 28px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; color: #fff; }
+        .close-btn { background: #ff4757; border: none; color: white; width: 35px; height: 35px; cursor: pointer; border-radius: 4px; font-weight: bold; font-size: 16px; transition: 0.2s; }
+        .modal-body { padding: 25px; overflow-y: auto; flex-grow: 1; }
+        #btn-biome-info { position: absolute; top: 20px; left: 20px; background: rgba(0, 0, 0, 0.7); border: 1px solid #00b0ff; color: #00b0ff; padding: 10px 15px; font-family: var(--font); font-weight: bold; cursor: pointer; z-index: 100; transition: 0.2s; }
+        #btn-call { position: absolute; top: 20px; left: 140px; background: rgba(0, 0, 0, 0.7); border: 1px solid #fff; color: #fff; padding: 10px 15px; font-family: var(--font); font-weight: bold; cursor: pointer; z-index: 100; transition: 0.2s; }
+        #btn-dev-all { position: absolute; top: 20px; right: 20px; background: rgba(255, 0, 0, 0.2); border: 1px solid #ff0000; color: #ff5555; padding: 8px 15px; font-size: 12px; font-family: var(--font); cursor: pointer; z-index: 100; transition: 0.2s; text-transform: uppercase; font-weight: bold; }
+        #btn-enable-sound { position: absolute; top: 60px; left: 20px; background: rgba(0, 255, 0, 0.2); border: 1px solid #0f0; color: #0f0; padding: 10px 15px; font-family: var(--font); font-weight: bold; cursor: pointer; z-index: 100; transition: 0.2s; }
+        .craft-row, .inv-item, .card, .biome-card { background: #1a1a1a; border: 1px solid #333; padding: 15px; margin-bottom: 10px; border-radius: 8px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; }
+        
+        .replay-btn {
+            background: black; border: 1px solid #333; color: #ccc; padding: 5px 15px; border-radius: 4px; font-size: 12px;
+            text-transform: uppercase; cursor: pointer; margin-top: 5px; transition: 0.2s; font-family: 'Rajdhani', sans-serif; font-weight: bold;
+        }
+        .replay-btn:hover { background: #333; color: white; border-color: white; }
+        #call-input, #call-modal button, #dialog-modal div { font-family: 'Rajdhani', sans-serif; }
+    </style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+<div id="bg-overlay"></div>
+<div id="lightning-flash"></div>
+
+<button id="btn-biome-info" onclick="openModal('biome-info')">[ i ] BIOMES</button>
+<button id="btn-enable-sound" onclick="toggleSound()">🔊 ENABLE SOUND</button>
+<button id="btn-call" onclick="openModal('call-modal')">📞 CALL</button>
+<button id="btn-dev-all" onclick="devUnlockAll()">⚡ DEV: UNLOCK ALL</button>
+
+<div id="cutscene">
+    <div id="cutscene-content"></div>
+    <div id="cutscene-text">ROLLING...</div>
+    <div class="flash-bang" id="flash-bang"></div>
+</div>
+
+<div id="hud">
+    <div class="stats-panel">
+        <div>COINS: <span id="coins" class="val">0</span></div>
+        <div>ROLLS: <span id="rolls" class="val">0</span></div>
+    </div>
+    <div class="stats-right">
+        <div><span id="pity-counter" class="pity-text">Pity: 0/10000</span></div>
+        <div>LUCK: <span id="luck" class="val gold">x1.0</span></div>
+        <div id="buff-timer" style="font-size: 14px; color: #00ff00;"></div>
+        <div id="heaven-status" style="display:none; color: #ff00ff; font-weight:bold; text-shadow: 0 0 10px currentColor;"></div>
+    </div>
+    <div class="sidebar">
+        <div style="font-size: 12px; color: #666; margin-bottom: 10px; padding-left:15px;">SYSTEM</div>
+        <button class="menu-btn" onclick="openModal('index')">Index</button>
+        <button class="menu-btn" onclick="openModal('craft')">Crafting</button>
+        <button class="menu-btn" onclick="openModal('storage')">Storage</button>
+        <button class="menu-btn btn-stelle" onclick="openModal('cauldron')">🔮 STELLE (Cauldron)</button>
+    </div>
+    <div class="center-stage">
+        <div style="margin-bottom: 20px;">
+            <div id="biome-wrapper">
+                <span style="color:#aaa; font-size:12px;">BIOME:</span>
+                <span id="biome-name">NORMAL</span>
+            </div>
+            <h1 id="aura-name">COMMON</h1>
+            <div id="aura-chance">1 in 2</div>
+        </div>
+    </div>
+    <div class="controls">
+        <button class="auto-btn" id="btn-auto" onclick="toggleAuto()">AUTO ROLL</button>
+        <button class="roll-btn" id="btn-roll" onclick="clickRoll()">ROLL</button>
+    </div>
+</div>
+
+<!-- MODALS -->
+<div id="biome-info" class="modal-bg"><div class="modal"><div class="modal-header"><span class="modal-title">Biome Guide</span><button class="close-btn" onclick="closeModal('biome-info')">X</button></div><div class="modal-body"><div id="biome-list" class="biome-list"></div></div></div></div>
+<div id="index" class="modal-bg"><div class="modal"><div class="modal-header"><span class="modal-title">Aura Index</span><button class="close-btn" onclick="closeModal('index')">X</button></div><div class="modal-body"><div id="index-grid" class="grid"></div></div></div></div>
+<div id="craft" class="modal-bg"><div class="modal"><div class="modal-header"><span class="modal-title">Glove Crafting</span><button class="close-btn" onclick="closeModal('craft')">X</button></div><div class="modal-body"><div style="margin-bottom:15px; color:#888;">Currently Equipped: <span id="current-glove" style="color:white; font-weight:bold;">Basic</span></div><div id="craft-list" class="craft-list"></div></div></div></div>
+<div id="storage" class="modal-bg"><div class="modal"><div class="modal-header"><span class="modal-title">Your Inventory</span><button class="close-btn" onclick="closeModal('storage')">X</button></div><div class="modal-body"><div id="storage-grid" style="display:flex; flex-wrap:wrap; justify-content:center;"></div></div></div></div>
+<div id="cauldron" class="modal-bg"><div class="modal" style="border-color: #7e22ce; box-shadow: 0 0 50px rgba(126, 34, 206, 0.5);"><div class="modal-header" style="background: #1e0a2e;"><span class="modal-title" style="color: #d8b4fe;">Stelle's Cauldron</span><button class="close-btn" onclick="closeModal('cauldron')">X</button></div><div class="modal-body"><p style="text-align:center; color:#aaa; margin-bottom:20px;">"Greetings, traveler. I can brew potions from your aura energy..."</p><div id="cauldron-list" class="craft-list"></div></div></div></div>
+<div id="call-modal" class="modal-bg"><div class="modal" style="height: 300px;"><div class="modal-header"><span class="modal-title">Call Someone</span><button class="close-btn" onclick="closeModal('call-modal')">X</button></div><div class="modal-body" style="display:flex; flex-direction:column; justify-content:center;"><input type="text" id="call-input" placeholder="Yell a name or phrase..."><button class="roll-btn" style="width:100%; font-size:18px;" onclick="submitCall()">SHOUT</button></div></div></div>
+<div id="dialog-modal" class="modal-bg"><div class="modal" style="height: 400px; border-color: white;"><div class="modal-header"><span class="modal-title">Interaction</span><button class="close-btn" onclick="closeModal('dialog-modal')">X</button></div><div class="modal-body" style="text-align:center; display:flex; flex-direction:column; justify-content:center;"><div id="dialog-speaker" class="dialog-speaker"></div><div id="dialog-text" class="dialog-text"></div></div></div></div>
+
+<script>
+    // --- AUDIO SYSTEM (GLITCH & UNIQUE AURAS) ---
+    class AudioController {
+        constructor() { this.ctx = null; this.bgmInterval = null; this.bgmGain = null; this.enabled = false; }
+        init() {
+            if (this.ctx) return; const AudioContext = window.AudioContext || window.webkitAudioContext; this.ctx = new AudioContext();
+            this.bgmGain = this.ctx.createGain(); this.bgmGain.connect(this.ctx.destination); this.bgmGain.gain.value = 0.1;
+            this.enabled = true; document.getElementById('btn-enable-sound').innerText = "🔊 SOUND: ON"; this.startGlitchBGM();
+        }
+        createNoiseBuffer() {
+            if(!this.ctx) return null; const bS = this.ctx.sampleRate * 2; const b = this.ctx.createBuffer(1, bS, this.ctx.sampleRate);
+            const d = b.getChannelData(0); for (let i = 0; i < bS; i++) d[i] = Math.random() * 2 - 1; return b;
+        }
+        playTone(freq, type, dur, startOffset) {
+            const osc = this.ctx.createOscillator(); const g = this.ctx.createGain();
+            osc.type = type; osc.frequency.value = freq; osc.connect(g); g.connect(this.ctx.destination);
+            g.gain.setValueAtTime(0.1, this.ctx.currentTime + startOffset); g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + startOffset + dur);
+            osc.start(this.ctx.currentTime + startOffset); osc.stop(this.ctx.currentTime + startOffset + dur);
+        }
+        playRollSound() { /* Removed basic roll sound to focus on cutscenes */ }
+        
+        playGenericBuild(durationSec) {
+            if (!this.enabled) return; this.bgmGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.5);
+            const noise = this.ctx.createBufferSource(); noise.buffer = this.createNoiseBuffer(); noise.loop = true;
+            const filter = this.ctx.createBiquadFilter(); filter.type = 'bandpass'; filter.Q.value = 8;
+            const gain = this.ctx.createGain();
+            noise.connect(filter); filter.connect(gain); gain.connect(this.ctx.destination);
+            filter.frequency.setValueAtTime(100, this.ctx.currentTime); filter.frequency.exponentialRampToValueAtTime(8000, this.ctx.currentTime + durationSec);
+            gain.gain.setValueAtTime(0, this.ctx.currentTime); gain.gain.linearRampToValueAtTime(0.3, this.ctx.currentTime + durationSec - 0.5); gain.gain.setValueAtTime(0, this.ctx.currentTime + durationSec);
+            noise.start(); noise.stop(this.ctx.currentTime + durationSec);
+            setTimeout(() => { this.bgmGain.gain.setTargetAtTime(0.1, this.ctx.currentTime, 1); }, durationSec * 1000 + 1000);
+        }
+
+        playSpecialCue(name) {
+            if (!this.enabled) return; this.bgmGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.5);
+            
+            if (name === 'Hyper-Volt') {
+                for(let i=0; i<30; i++) this.playTone(800 + Math.random()*1000, 'sawtooth', 0.1, i*0.2);
+            } else if (name === 'Chromatic') {
+                [261, 329, 392, 523, 659, 783].forEach((f,i) => this.playTone(f, 'square', 0.5, i*0.2));
+                [261, 329, 392, 523, 659, 783].reverse().forEach((f,i) => this.playTone(f, 'square', 0.5, 3 + i*0.2));
+            } else if (name === 'Star') {
+                for(let i=0; i<10; i++) this.playTone(1500 + i*100, 'sine', 1, i*0.5);
+            } else if (name === 'Impeached') {
+                this.playTone(50, 'sawtooth', 6, 0); 
+                for(let i=0; i<10; i++) this.playTone(Math.random()*2000, 'sawtooth', 0.1, Math.random()*5);
+            } else if (name === 'Sovereign') {
+                [130, 196, 261, 392].forEach(f => this.playTone(f, 'triangle', 6, 0)); // C minor chord
+            } else if (name === 'OBLIVION') {
+                const n = this.ctx.createBufferSource(); n.buffer = this.createNoiseBuffer();
+                const g = this.ctx.createGain(); n.connect(g); g.connect(this.ctx.destination);
+                g.gain.value = 0.2; n.start(); n.stop(this.ctx.currentTime + 6);
+                this.playTone(40, 'square', 6, 0);
+            } else if (name === 'Memory') {
+                [329, 261, 196, 164].forEach((f,i) => this.playTone(f, 'triangle', 2, i*1.5)); // Sad arp
+            } else if (name === 'Exoplanet') {
+                for(let i=0; i<20; i++) this.playTone(Math.random()*3000, 'sine', 0.05, Math.random()*6);
+            } else if (name === 'Eternal') {
+                this.playTone(110, 'sine', 6, 0); this.playTone(220, 'sine', 6, 0); // Shepard-like tone
+            } else if (name === 'Luminosity') {
+                [261, 329, 392, 493].forEach(f => this.playTone(f*2, 'sine', 18, 0)); 
+                for(let i=0; i<10; i++) this.playTone(1000+Math.random()*500, 'triangle', 2, i*1.5);
+            } else if (name === 'Gargantua') {
+                this.playTone(30, 'sawtooth', 6, 0); // Deep bass
+            } else {
+                this.playGenericBuild(5.5);
+            }
+            setTimeout(() => { this.bgmGain.gain.setTargetAtTime(0.1, this.ctx.currentTime, 1); }, 6500);
+        }
+
+        playDropSound() {
+            if (!this.enabled) return; 
+            // Bass Kick
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            const delay = this.ctx.createDelay();
+            const feedback = this.ctx.createGain();
+            
+            // Routing: Osc -> Gain -> Output AND Osc -> Gain -> Delay -> Feedback -> Delay -> Output
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            gain.connect(delay);
+            delay.connect(feedback);
+            feedback.connect(delay);
+            delay.connect(this.ctx.destination);
+
+            osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.5);
+            
+            gain.gain.setValueAtTime(1.0, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.5);
+
+            // Echo params
+            delay.delayTime.value = 0.25; 
+            feedback.gain.value = 0.4;
+
+            osc.start(); osc.stop(this.ctx.currentTime + 2.0);
+        }
+
+        startGlitchBGM() {
+            if (!this.enabled) return;
+            if(this.bgmInterval) clearInterval(this.bgmInterval);
+            
+            const playGlitchHit = () => {
+                if(this.bgmGain.gain.value < 0.01) return; 
+                const osc = this.ctx.createOscillator();
+                const g = this.ctx.createGain();
+                osc.connect(g); g.connect(this.bgmGain);
+                
+                // Random waveform per hit
+                const waves = ['square', 'sawtooth', 'triangle'];
+                osc.type = waves[Math.floor(Math.random() * waves.length)];
+                
+                // Random frequency in pentatonic scale
+                const notes = [261, 293, 329, 392, 440, 523, 587];
+                osc.frequency.value = notes[Math.floor(Math.random()*notes.length)];
+                
+                // Short envelope
+                g.gain.setValueAtTime(0.05, this.ctx.currentTime);
+                g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.1); // Super short
+                
+                osc.start(); osc.stop(this.ctx.currentTime + 0.1);
+            };
+            // Fast random rhythm
+            this.bgmInterval = setInterval(playGlitchHit, 150); 
+        }
+    }
+    const audio = new AudioController();
+    function toggleSound() { audio.init(); }
+
+    const auras = [
+        { name: "Common", chance: 2, color: "#aaa" },
+        { name: "Uncommon", chance: 4, color: "#4caf50" },
+        { name: "Good", chance: 5, color: "#81c784" },
+        { name: "Natural", chance: 8, color: "#2e7d32" },
+        { name: "Rare", chance: 16, color: "#2196f3" },
+        { name: "Divinus", chance: 32, color: "#ffd700" },
+        { name: "Crystallized", chance: 64, color: "#00ffff" },
+        { name: "Rage", chance: 100, color: "#ff3d00" },
+        { name: "Topaz", chance: 150, color: "#ffc107" },
+        { name: "Glacier", chance: 256, native: "Snowy", mult: 10, color: "#80deea" },
+        { name: "Wind", chance: 300, native: "Windy", mult: 5, color: "#e0f7fa" },
+        { name: "Ruby", chance: 350, color: "#e91e63" },
+        { name: "Emerald", chance: 400, color: "#00e676" },
+        { name: "Gilded", chance: 512, color: "#fbc02d" },
+        { name: "Jackpot", chance: 777, color: "#ff4081" },
+        { name: "Sapphire", chance: 800, color: "#304ffe" },
+        { name: "Aquamarine", chance: 900, native: "Rainy", mult: 5, color: "#7fffd4" },
+        { name: "Diaboli", chance: 1004, native: "Hell", mult: 10, color: "#b71c1c" },
+        { name: "Precious", chance: 1200, color: "#9575cd" },
+        { name: "Magnetic", chance: 2048, color: "#607d8b" },
+        { name: "Sidereum", chance: 4096, color: "#1a237e" },
+        { name: "Bleeding", chance: 4444, native: "Hell", mult: 10, color: "#880e4f" },
+        { name: "Solar", chance: 5000, native: "Starfall", mult: 10, color: "#ffea00" },
+        { name: "Lunar", chance: 5000, native: "Starfall", mult: 10, color: "#bdbdbd" },
+        { name: "Stormal", chance: 6000, native: "Windy", mult: 5, color: "#546e7a" },
+        { name: "Eclipse", chance: 7500, color: "#212121" },
+        { name: "Comet", chance: 12000, native: "Starfall", mult: 10, color: "#00b0ff" },
+        { name: "Exotic", chance: 15000, color: "#ff00ff" },
+        { name: "Hazard", chance: 20000, color: "#c6ff00" },
+        { name: "Water", chance: 25000, native: "Rainy", mult: 10, color: "#0000ff" },
+        { name: "Bounded", chance: 50000, color: "#6a1b9a" },
+        { name: "Celestial", chance: 75000, color: "#fff9c4" },
+        { name: "Kyawthuite", chance: 85000, color: "#d2691e" },
+        { name: "Arcane", chance: 100000, color: "#9932cc" },
+        { name: "Gravitational", chance: 125000, native: "Space", mult: 10, color: "#2f4f4f" },
+        { name: "Galaxy", chance: 150000, native: "Starfall", mult: 10, color: "#aa00ff" },
+        { name: "Flesh", chance: 400000, native: "Hell", mult: 10, color: "#8b4513" },
+        { name: "Virtual", chance: 500000, native: "Glitch", mult: 10, color: "#69f0ae" },
+        { name: "Poseidon", chance: 800000, native: "Rainy", mult: 10, color: "#18ffff" },
+        { name: "Hades", chance: 1000000, native: "Hell", mult: 10, color: "#3e2723" },
+        { name: "Chromatic", chance: 1200000, color: "#ff69b4" },
+        { name: "Zeus", chance: 1500000, native: "Thunderstorm", mult: 10, color: "#ffffff" },
+        { name: "Hyper-Volt", chance: 2500000, native: "Thunderstorm", mult: 10, color: "#ffff00" },
+        { name: "Star", chance: 3000000, native: "Starfall", mult: 10, color: "#fffacd" },
+        { name: "Matrix", chance: 4000000, native: "Glitch", mult: 10, color: "#00fa9a" },
+        { name: "Glitch", chance: 5000000, native: "Glitch", mult: 10, color: "#000000" },
+        { name: "Archangel", chance: 7000000, color: "#ffeb3b" },
+        { name: "Impeached", chance: 8500000, color: "#4a148c" },
+        { name: "Sovereign", chance: 10000000, color: "#ffd700" },
+        { name: "OBLIVION", chance: 25000000, color: "#111" },
+        { name: "Memory", chance: 30000000, color: "#ff69b4" },
+        { name: "Exoplanet", chance: 40000000, native: "Space", mult: 10, color: "#9acd32" },
+        { name: "Gargantua", chance: 50000000, color: "#4e342e" },
+        { name: "Eternal", chance: 75000000, color: "#f0f8ff" },
+        { name: "Luminosity", chance: 100000000, color: "#e0f7fa" }
+    ];
+
+    const biomes = [
+        { name: "Normal", color: "#fff", bg: "#000000", buffs: {} },
+        { name: "Windy", color: "#a0e6ff", bg: "#1a2a3a", buffs: { "Wind": 5, "Stormal": 5 } },
+        { name: "Rainy", color: "#4040aa", bg: "#0a0a2a", buffs: { "Poseidon": 10, "Water": 5, "Aquamarine": 5 } },
+        { name: "Hell", color: "#ff0000", bg: "#2a0000", buffs: { "Hades": 10, "Diaboli": 5, "Bleeding": 5, "Flesh": 5 } },
+        { name: "Starfall", color: "#ffff00", bg: "#1a1a00", buffs: { "Galaxy": 10, "Star": 5, "Comet": 10, "Solar": 3, "Lunar": 3 } },
+        { name: "Thunderstorm", color: "#e0e000", bg: "#111111", buffs: { "Hyper-Volt": 10, "Zeus": 5 } },
+        { name: "Glitch", color: "#00ff00", bg: "#001a00", buffs: { "Glitch": 2, "Matrix": 5, "Virtual": 5 } },
+        { name: "Snowy", color: "#fffafa", bg: "#1a252f", buffs: { "Glacier": 10 } },
+        { name: "Space", color: "#aa00ff", bg: "#1a002f", buffs: { "Gravitational": 10, "Exotic": 5, "Exoplanet": 10 } },
+        { name: "DREAMGALACTIC", color: "#E0B0FF", bg: "#0d001a", buffs: { "Luminosity": 2, "Galaxy": 5, "Star": 5 } }
+    ];
+
+    const gloves = [ { name: "Basic", luck: 1, cost: {} }, { name: "Green", luck: 1.2, cost: { "Uncommon": 10 } }, { name: "Solar", luck: 1.5, cost: { "Rare": 5, "Crystallized": 2 } }, { name: "Golden", luck: 2.0, cost: { "Gilded": 3, "Topaz": 5 } }, { name: "Galactic", luck: 3.5, cost: { "Galaxy": 1, "Sidereum": 10 } }, { name: "Jackpot Gauntlet", luck: 5.0, cost: { "Jackpot": 1, "Gilded": 10 } }, { name: "Void Hand", luck: 10.0, cost: { "Gravitational": 1, "Bounded": 3, "Undefined": 5 } } ];
+    const potions = [ { id: "luck1", name: "Small Luck", luck: 1.5, time: 30, price: 50, type: "time", icon: "🧪", color: "#4caf50", desc: "x1.5 Luck (30s)", msg: "Small luck boost active!" }, { id: "luck2", name: "Medium Luck", luck: 2.0, time: 60, price: 150, type: "time", icon: "⚗️", color: "#2196f3", desc: "x2.0 Luck (60s)", msg: "Medium luck boost active!" }, { id: "heaven", name: "Heavenly Potion", bonus: 150000, price: 333, type: "legendary", icon: "🌟", color: "#d4af37", desc: "+150k Luck (1 Roll)", glow: "rgba(255, 0, 255, 0.5)", msg: "HEAVENLY ENERGY ACTIVATED!" }, { id: "oblivion", name: "OBLIVION POTION", bonus: 600000, price: 5000, type: "mythical", icon: "🌌", color: "#9400d3", desc: "+600k Luck (1 Roll)", glow: "#8a2be2", msg: "THE VOID GAZES BACK... (+600K LUCK)" }, { id: "vuz", name: "Vuz's Potion", bonus: 80000, price: 0, type: "legendary", icon: "🤠", color: "#ff8c00", desc: "+80k Luck (1 Roll)", glow: "#ffa500", msg: "Yee-haw! Cowboy luck!" }, { id: "pos_pot", name: "Poseidon Potion", bonus: 50000, price: 0, type: "rare", icon: "🔱", color: "#00ced1", desc: "+50k Luck", glow: "#00ffff", msg: "The seas align..." }, { id: "had_pot", name: "Hades Potion", bonus: 50000, price: 0, type: "rare", icon: "🔥", color: "#8b0000", desc: "+50k Luck", glow: "#ff4500", msg: "Hellfire consumes you..." }, { id: "zeu_pot", name: "Zeus Potion", bonus: 50000, price: 0, type: "rare", icon: "⚡", color: "#ffffff", desc: "+50k Luck", glow: "#ffff00", msg: "Thunder strikes!" }, { id: "god_pot", name: "GODLIKE POTION", bonus: 500000, price: 0, type: "mythical", icon: "👑", color: "#ffd700", desc: "+500k Luck (1 Roll)", glow: "#ffcc00", msg: "UNLIMITED POWER... THE GODS BLESS YOU." } ];
+    const cauldronRecipes = [ { id: "luck1", name: "Small Luck", cost: { "Common": 10, "Uncommon": 5 } }, { id: "luck2", name: "Medium Luck", cost: { "Rare": 5, "Good": 10 } }, { id: "heaven", name: "Heavenly Potion", cost: { "Gilded": 2, "Glacier": 1, "Divinus": 10 } }, { id: "oblivion", name: "OBLIVION POTION", cost: { "Galaxy": 1, "Hades": 1, "Eclipse": 5 } }, { id: "pos_pot", name: "Poseidon Potion", cost: { "Poseidon": 1 } }, { id: "had_pot", name: "Hades Potion", cost: { "Hades": 1 } }, { id: "zeu_pot", name: "Zeus Potion", cost: { "Zeus": 1 } }, { id: "god_pot", name: "GODLIKE POTION", cost: { "pos_pot": 1, "had_pot": 1, "zeu_pot": 1 } } ];
+
+    let data = { inv: {}, pots: { "luck1": 0, "luck2": 0, "heaven": 3, "oblivion": 8, "vuz": 0, "pos_pot":0, "had_pot":0, "zeu_pot":0, "god_pot":0 }, coins: 100, rolls: 0, glove: 0, ownedGloves: [0], pityCounter: 0 };
+    auras.forEach(a => data.inv[a.name] = 0);
+    let activePot = null; let autoRolling = false; let autoInt = null; let animating = false; let currentBiome = biomes[0]; let lastDropName = "";
+    let bonusSystem = { currentLuck: 0, activeSources: [], queue: [] };
+    const PITY_LIMIT = 10000; const PITY_RESET_THRESHOLD = 250000; const PITY_GUARANTEE_MIN = 500000;
+    const canvas = document.getElementById('bg-canvas'); const ctx = canvas.getContext('2d'); let particles = [];
+    function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; } window.addEventListener('resize', resizeCanvas); resizeCanvas();
+
+    class Particle {
+        constructor(type) { this.type = type; this.reset(); }
+        reset() {
+            this.x = Math.random() * canvas.width; this.y = Math.random() * canvas.height; this.size = Math.random() * 2 + 1;
+            if(this.type === 'Snowy') { this.y = -10; this.speedY = Math.random() * 1 + 0.5; this.speedX = Math.random() * 1 - 0.5; this.opacity = Math.random() * 0.5 + 0.5; }
+            else if (this.type === 'Rainy') { this.y = -20; this.speedY = Math.random() * 10 + 15; this.speedX = 2; this.size = Math.random() * 1 + 0.5; this.len = Math.random() * 10 + 10; }
+            else if (this.type === 'Hell') { this.y = canvas.height + 10; this.speedY = -(Math.random() * 2 + 1); this.speedX = Math.random() * 2 - 1; this.color = `rgba(255, ${Math.floor(Math.random()*100)}, 0, 0.8)`; }
+            else if (this.type === 'Windy') { this.x = -10; this.speedX = Math.random() * 10 + 5; this.speedY = Math.random() * 2 - 1; }
+            else if (this.type === 'Starfall') { this.y = -10; this.speedY = Math.random() * 5 + 2; this.color = "gold"; }
+            else if (this.type === 'Glitch') { this.x = Math.random() * canvas.width; this.y = Math.random() * canvas.height; this.char = String.fromCharCode(0x30A0 + Math.random() * 96); this.timer = Math.random() * 50; }
+            else if (this.type === 'DREAMGALACTIC') { this.y = -10; this.speedY = Math.random() * 0.5 + 0.2; this.color = Math.random()>0.5 ? '#E0B0FF' : '#ffffff'; this.size = Math.random()*2; }
+            else { this.speedX = 0; this.speedY = 0; this.opacity = Math.random(); this.flicker = Math.random() * 0.02; }
+        }
+        update() {
+            if(this.type === 'Snowy') { this.y += this.speedY; this.x += Math.sin(this.y * 0.01) * 0.5; if(this.y > canvas.height) this.reset(); }
+            else if (this.type === 'Rainy') { this.y += this.speedY; this.x += this.speedX; if(this.y > canvas.height) this.reset(); }
+            else if (this.type === 'Hell') { this.y += this.speedY; this.x += this.speedX; if(this.y < -10) this.reset(); }
+            else if (this.type === 'Windy') { this.x += this.speedX; if(this.x > canvas.width) this.reset(); }
+            else if (this.type === 'Starfall') { this.y += this.speedY; if(this.y > canvas.height) this.reset(); }
+            else if (this.type === 'DREAMGALACTIC') { this.y += this.speedY; this.x += Math.sin(this.y * 0.02) * 0.2; if(this.y > canvas.height) this.reset(); }
+            else if (this.type === 'Glitch') { this.timer--; if(this.timer <= 0) this.reset(); }
+            else { this.opacity += this.flicker; if(this.opacity > 1 || this.opacity < 0) this.flicker *= -1; }
+        }
+        draw() {
+            ctx.beginPath();
+            if(this.type === 'Snowy') { ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity})`; ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill(); }
+            else if (this.type === 'Rainy') { ctx.strokeStyle = `rgba(100, 150, 255, 0.5)`; ctx.lineWidth = this.size; ctx.moveTo(this.x, this.y); ctx.lineTo(this.x - 2, this.y + this.len); ctx.stroke(); }
+            else if (this.type === 'Hell') { ctx.fillStyle = this.color; ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill(); }
+            else if (this.type === 'Starfall') { ctx.fillStyle = this.color; ctx.fillRect(this.x, this.y, this.size*2, this.size*2); ctx.fill(); }
+            else if (this.type === 'DREAMGALACTIC') { ctx.fillStyle = this.color; ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill(); }
+            else if (this.type === 'Glitch') { ctx.fillStyle = "#0f0"; ctx.font = "12px monospace"; ctx.fillText(this.char, this.x, this.y); }
+            else { ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity})`; ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill(); }
+        }
+    }
+
+    function initParticles(type) { particles = []; let count = 100; if(type === 'Rainy' || type === 'Snowy') count = 200; if(type === 'Hell' || type === 'Glitch') count = 50; if(type === 'DREAMGALACTIC') count = 150; for(let i=0; i<count; i++) particles.push(new Particle(type)); }
+    function animateParticles() { ctx.clearRect(0, 0, canvas.width, canvas.height); if(currentBiome && currentBiome.name === 'Thunderstorm' && Math.random() < 0.01) { document.getElementById('lightning-flash').style.opacity = 0.5; setTimeout(() => document.getElementById('lightning-flash').style.opacity = 0, 100); } particles.forEach(p => { p.update(); p.draw(); }); requestAnimationFrame(animateParticles); }
+    function updateBiome() { const rand = Math.floor(Math.random() * biomes.length); currentBiome = biomes[rand]; const el = document.getElementById('biome-name'); if(el) { el.innerText = currentBiome.name; el.style.color = currentBiome.color; el.style.textShadow = `0 0 10px ${currentBiome.color}`; } document.getElementById('bg-overlay').style.backgroundColor = currentBiome.bg + "80"; initParticles(currentBiome.name); }
+    function clickRoll() { if(!animating) doRoll(); }
+    function toggleAuto() { autoRolling = !autoRolling; const btn = document.getElementById('btn-auto'); if(autoRolling) { btn.classList.add('active'); btn.innerText = "AUTO: ON"; doRoll(); autoInt = setInterval(() => { if(!animating) { doRoll(); } }, 500); } else { btn.classList.remove('active'); btn.innerText = "AUTO ROLL"; clearInterval(autoInt); } }
+    function addBonus(id, val) { if (bonusSystem.activeSources.includes(id)) { bonusSystem.queue.push(bonusSystem.currentLuck); bonusSystem.currentLuck = val; bonusSystem.activeSources = [id]; } else { if(bonusSystem.currentLuck === 0) bonusSystem.currentLuck = val; else bonusSystem.currentLuck += val; bonusSystem.activeSources.push(id); } updateUI(); }
+    function getAndConsumeBonus() { let val = bonusSystem.currentLuck; if (bonusSystem.queue.length > 0) { bonusSystem.currentLuck = bonusSystem.queue.shift(); bonusSystem.activeSources = []; } else { bonusSystem.currentLuck = 0; bonusSystem.activeSources = []; } return val; }
+    function doRoll() { let luck = gloves[data.glove].luck; if(activePot && Date.now() < activePot.end) luck *= activePot.luck; let flatBonus = getAndConsumeBonus(); let finalLuck = luck + flatBonus; updateUI(); let win = null; let isLuckyRoll = false; if (data.pityCounter >= PITY_LIMIT) { let highPool = auras.filter(a => a.chance >= PITY_GUARANTEE_MIN); win = highPool[Math.floor(Math.random() * highPool.length)]; win = { ...win, effectiveChance: win.chance, isBreakthrough: false }; data.pityCounter = 0; isLuckyRoll = true; } else { let pool = auras.map(a => { let effChance = a.chance; let bt = false; if (a.native) { if (currentBiome.name !== a.native) { effChance = a.chance * (a.mult || 1); bt = true; } else if(currentBiome.buffs[a.name]) effChance = a.chance / currentBiome.buffs[a.name]; } else if(currentBiome.buffs[a.name]) effChance = a.chance / currentBiome.buffs[a.name]; return { ...a, effectiveChance: effChance, isBreakthrough: bt }; }).sort((a,b) => b.effectiveChance - a.effectiveChance); win = auras[0]; let rand = Math.random(); for(let a of pool) { if(rand < (1 / (a.effectiveChance / finalLuck))) { win = a; break; } } if (win.chance > 10000 && win.name === lastDropName) win = auras[0]; lastDropName = win.name; if (win.chance >= PITY_RESET_THRESHOLD) data.pityCounter = 0; else data.pityCounter++; } if(isLuckyRoll) playCutscene(win, false, false, true); else if(win.chance >= 1000) playCutscene(win, false, win.isBreakthrough, false); else giveReward(win, win.isBreakthrough); }
+    function createParticles(cssClass, count) { let html = ''; for(let i=0; i<count; i++) { const left = Math.random() * 100; const top = Math.random() * 100; const delay = Math.random() * 2; const dur = Math.random() * 2 + 2; const scale = Math.random() * 0.5 + 0.5; html += `<div class="${cssClass}" style="left:${left}%; top:${top}%; animation-delay:${delay}s; animation-duration:${dur}s; transform:scale(${scale})"></div>`; } return html; }
+
+    function playCutscene(aura, isReplay, isBreakthrough, isLucky) {
+        animating = true;
+        const cs = document.getElementById('cutscene');
+        const text = document.getElementById('cutscene-text');
+        const content = document.getElementById('cutscene-content');
+        const flash = document.getElementById('flash-bang');
+        
+        document.documentElement.style.setProperty('--aura-color', aura.color);
+        
+        let duration = 6200;
+        const customScenes = ['Luminosity', 'Gargantua', 'Archangel', 'Impeached', 'Glitch', 'Eternal', 'Exoplanet', 'Memory', 'OBLIVION', 'Sovereign', 'Virtual', 'Chromatic', 'Hyper-Volt', 'Star', 'Poseidon'];
+        if (!customScenes.includes(aura.name) && aura.chance < 1000) duration = 5500;
+        if(aura.name === 'Luminosity') duration = 18000;
+
+        // Route Audio
+        if(customScenes.includes(aura.name)) {
+            audio.playSpecialCue(aura.name);
+        } else {
+            audio.playGenericBuild(duration / 1000);
+        }
+
+        if (aura.name === 'Virtual') {
+             content.innerHTML = `<div class="virtual-scene"><div class="virt-bg-grid"></div><div class="virt-text-wrapper"><div class="virt-big-text">[OVERDRIVE]</div><div class="virt-sub">SYSTEM FAILURE</div></div><div class="star-buildup"><div class="virt-core"></div><div class="virt-square"></div><div class="virt-square"></div><div class="virt-beam"></div><div class="virt-beam v"></div></div><div class="virt-glitch-bottom"></div><div class="virt-block"></div><div class="virt-block" style="left:50%; width:80px; animation-delay:0.1s"></div><div class="virt-block" style="left:80%; width:120px; animation-delay:0.3s"></div></div>`;
+        } else if (aura.name === 'Luminosity') {
+            content.innerHTML = `<div class="luminosity-scene"><div class="lum-god-rays"><div class="lum-ray" style="left: 20%; animation-delay: 0s;"></div><div class="lum-ray" style="left: 50%; animation-delay: 2s;"></div><div class="lum-ray" style="left: 80%; animation-delay: 4s;"></div><div class="lum-ray" style="left: 35%; animation-delay: 1s;"></div><div class="lum-ray" style="left: 65%; animation-delay: 3s;"></div></div><div class="lum-chain-group"><div class="lum-chain lc-1"></div><div class="lum-chain lc-2"></div><div class="lum-chain lc-3"></div><div class="lum-chain lc-4"></div></div><div class="lum-star-bg"></div><div class="lum-dialogue-container"><div class="lum-text lt-1">WELL, YOU FINALLY REACHED ME.</div><div class="lum-text lt-2">NOW, DON'T BE AFRAID OF THE DARK.</div></div><div class="lum-beam"></div><div class="lum-mandala-container"><div class="lum-ring lr-outer"></div><div class="lum-ring lr-mid"></div><div class="lum-square ls-1"></div><div class="lum-square ls-2"></div></div><div class="lum-final-title">THE ABSOLUTE RADIANCE</div></div>`;
+        } else if (aura.name === 'Chromatic') {
+            content.innerHTML = `<div class="chromatic-scene"><div class="chrom-eq-circle"><div class="chrom-bars"><div class="chrom-bar" style="transform: rotate(0deg) translateY(300px)"></div><div class="chrom-bar" style="transform: rotate(45deg) translateY(300px); animation-delay:0.1s"></div><div class="chrom-bar" style="transform: rotate(90deg) translateY(300px); animation-delay:0.2s"></div><div class="chrom-bar" style="transform: rotate(135deg) translateY(300px); animation-delay:0.3s"></div><div class="chrom-bar" style="transform: rotate(180deg) translateY(300px); animation-delay:0.4s"></div><div class="chrom-bar" style="transform: rotate(225deg) translateY(300px); animation-delay:0.5s"></div><div class="chrom-bar" style="transform: rotate(270deg) translateY(300px); animation-delay:0.6s"></div><div class="chrom-bar" style="transform: rotate(315deg) translateY(300px); animation-delay:0.7s"></div></div></div><div class="chrom-text" style="top:20%">AWAKE</div><div class="chrom-text" style="bottom:20%">FROM</div><div class="chrom-text" style="left:10%">STAY</div><div class="chrom-text" style="right:10%">AWAY</div><div class="star-buildup"><div class="chrom-diamond"></div><div class="chrom-ray"></div><div class="chrom-ray v"></div></div></div>`;
+        } else if (aura.name === 'Hyper-Volt') {
+             content.innerHTML = `<div class="hv-scene"><div class="hv-clouds"></div><div class="hv-lightning hv-l1"></div><div class="hv-lightning hv-l2"></div><div class="hv-lightning hv-l3"></div><div class="hv-numbers"><div class="hv-num">0</div><div class="hv-num" style="animation-delay:0.1s">8</div><div class="hv-num" style="animation-delay:0.2s">1</div><div class="hv-num" style="animation-delay:0.3s">8</div></div><div class="star-buildup"><div class="hv-orb"></div><div class="hv-ring"></div></div></div>`;
+        } else if (aura.name === 'Star') {
+             content.innerHTML = `<div class="star-aura-scene"><div class="star-bg-beams"></div><div class="star-buildup"><div class="star-outline"></div><div class="star-main"></div><div class="star-glow-center"></div></div></div>`;
+        } else if (aura.name === 'Poseidon') {
+            let bubbles = createParticles('pos-bubble', 40);
+            content.innerHTML = `<div class="poseidon-scene"><div class="pos-caustics"></div><div class="pos-bubbles">${bubbles}</div><div class="star-buildup"><div class="trident-staff"></div><div class="trident-u"></div><div class="trident-tip tip-mid"></div><div class="trident-tip tip-left"></div><div class="trident-tip tip-right"></div><div class="pos-glow"></div></div></div>`;
+        } else if (aura.name === 'Glitch') {
+            content.innerHTML = `<div class="glitch-scene"><div class="glitch-bg-text">PREPARING [AEGIS]...<br><br>POWER LEVEL: UNKNOWN<br>[ SYSTEM FAILURE ]</div><div class="star-buildup"><div class="glitch-cube-wrapper medium"><div class="gc-face gc-front"></div><div class="gc-face gc-back"></div><div class="gc-face gc-right"></div><div class="gc-face gc-left"></div><div class="gc-face gc-top"></div><div class="gc-face gc-bottom"></div></div><div class="glitch-cube-wrapper"><div class="gc-face gc-front"></div><div class="gc-face gc-back"></div><div class="gc-face gc-right"></div><div class="gc-face gc-left"></div><div class="gc-face gc-top"></div><div class="gc-face gc-bottom"></div></div><div class="glitch-core"></div></div></div>`;
+        } else if (aura.name === 'Eternal') {
+             let notesHtml = ['♩', '♪', '♫', '♬'].map(n => `<div class="et-note">${n}</div>`).join('');
+             content.innerHTML = `<div class="eternal-scene"><div class="et-vortex"></div><div class="et-ring"></div><div class="et-notes-container">${notesHtml}</div><div class="star-buildup"><div class="et-spike r1"></div><div class="et-spike r2"></div><div class="et-spike r3"></div><div class="et-spike r4"></div></div></div>`;
+        } else if (aura.name === 'Exoplanet') {
+             let dust = createParticles('exo-dust', 50);
+             content.innerHTML = `<div class="exoplanet-scene">${dust}<div class="star-buildup"><div class="exo-star-core"></div><div class="exo-ray h"></div><div class="exo-ray v"></div><div class="exo-ray d1"></div><div class="exo-ray d2"></div></div></div>`;
+        } else if (aura.name === 'OBLIVION') {
+            let particles = createParticles('ob-particle', 30);
+            content.innerHTML = `<div class="oblivion-scene"><div class="ob-splatter s1"></div><div class="ob-splatter s2"></div>${particles}<div class="star-buildup"><div class="ob-ray h"></div><div class="ob-ray v"></div><div class="ob-ray d1"></div><div class="ob-ray d2"></div><div class="ob-core"></div></div></div>`;
+        } else if (aura.name === 'Sovereign') {
+            content.innerHTML = `<div class="sovereign-scene"><div class="sov-mist"></div><div class="sov-circle-group"><div class="sov-ring"></div><div class="sov-runes"></div></div><div class="sov-constellation"><div class="const-dot" style="top:10%; left:20%"></div><div class="const-dot" style="top:40%; left:50%"></div><div class="const-dot" style="top:70%; left:30%"></div><div class="const-line" style="top:12%; left:22%; width:65px; transform:rotate(35deg)"></div><div class="const-line" style="top:42%; left:33%; width:65px; transform:rotate(130deg)"></div></div><div class="star-buildup"><div class="sov-ray h"></div><div class="sov-ray v"></div><div class="sov-ray d1"></div><div class="sov-ray d2"></div><div class="sov-core"></div></div></div>`;
+        } else if (aura.name === 'Gargantua') {
+            content.innerHTML = `<div class="gargantua-scene"><div class="g-particles"></div><div class="g-singularity"></div><div class="g-disk"></div><div class="g-rays"></div></div>`;
+        } else if (aura.name === 'Archangel') {
+            let feathers = createParticles('arch-feather', 30);
+            content.innerHTML = `<div class="archangel-scene"><div class="arch-rays"></div>${feathers}<div class="arch-circle"></div><div class="arch-cross-group star-buildup"><div class="ac-ring"></div><div class="ac-vert"></div><div class="ac-horiz"></div><div class="ac-gem"></div></div></div>`;
+        } else if (aura.name === 'Impeached') {
+            let squares = createParticles('imp-square', 50);
+            content.innerHTML = `<div class="impeached-scene">${squares}<div class="imp-crown"></div></div>`;
+        } else if (aura.name === 'Memory') {
+            let shards = createParticles('mem-shard', 40);
+            content.innerHTML = `<div class="memory-scene">${shards}<div class="mem-star-group star-buildup"><div class="mem-spike mem-rot-1"></div><div class="mem-spike mem-rot-2"></div><div class="mem-spike mem-rot-3"></div><div class="mem-spike mem-rot-4"></div><div class="mem-core"></div></div></div>`;
+        } else {
+            content.innerHTML = `<div class="star-container star-buildup"><div class="spike vertical"></div><div class="spike horizontal"></div><div class="spike diag-1"></div><div class="spike diag-2"></div><div class="core-glow"></div></div>`;
+        }
+
+        cs.className = ''; 
+        if (aura.name === 'Glitch') cs.classList.add('glitch-active');
+        if (aura.name === 'Sovereign') cs.classList.add('style-sovereign');
+        if (aura.name === 'Memory') cs.classList.add('style-memory');
+
+        cs.style.display = 'flex';
+        
+        if (customScenes.includes(aura.name)) text.style.display = 'none';
+        else text.style.display = 'block';
+
+        text.className = '';
+        if (isLucky) { text.innerText = "🍀 LUCKY ROLL 🍀"; text.classList.add('lucky-anim'); }
+        else if (isBreakthrough) { text.innerText = "⚠️ BREAKTHROUGH ⚠️"; text.classList.add('breakthrough-anim'); }
+        else { text.innerText = "ROLLING..."; }
+        
+        flash.classList.remove('flash-active');
+
+        setTimeout(() => {
+            flash.classList.add('flash-active');
+            audio.playDropSound(); // BASS + ECHO
+            
+            text.className = ''; 
+            text.innerText = aura.name; 
+            text.style.color = aura.color;
+            
+            setTimeout(() => {
+                cs.style.display = 'none'; animating = false;
+                content.innerHTML = "";
+                text.style.display = 'block';
+                if(!isReplay) giveReward(aura, isBreakthrough); else displayAura(aura, isBreakthrough);
+            }, 500);
+        }, duration);
+    }
+
+    function giveReward(aura, isBreakthrough) { data.inv[aura.name]++; data.rolls++; data.coins++; displayAura(aura, isBreakthrough); updateUI(); }
+    function displayAura(aura, isBreakthrough) { const n = document.getElementById('aura-name'); n.innerText = aura.name; n.style.color = aura.color; n.style.textShadow = `0 0 30px ${aura.color}`; n.className = ''; if(aura.name === 'Luminosity') n.style.textShadow = "0 0 20px cyan, 0 0 40px white"; let cText = ""; let finalChance = aura.chance; if (aura.native && currentBiome.name !== aura.native) { finalChance = aura.chance * (aura.mult || 1); cText = `1 in ${finalChance.toLocaleString()}`; if(isBreakthrough) cText += " (BREAKTHROUGH!)"; } else if (currentBiome.buffs[aura.name]) { finalChance = aura.chance / currentBiome.buffs[aura.name]; cText = `1 in ${finalChance.toLocaleString()} (Biome Buff)`; } else cText = `1 in ${finalChance.toLocaleString()}`; const cEl = document.getElementById('aura-chance'); cEl.innerText = cText; cEl.className = isBreakthrough ? 'breakthrough-text' : (currentBiome.buffs[aura.name] ? 'buffed-text' : ''); }
+    function updateUI() { document.getElementById('coins').innerText = data.coins; document.getElementById('rolls').innerText = data.rolls; document.getElementById('current-glove').innerText = gloves[data.glove].name; document.getElementById('pity-counter').innerText = `Pity: ${data.pityCounter}/${PITY_LIMIT}`; let luck = gloves[data.glove].luck; if(activePot && Date.now() < activePot.end) luck *= activePot.luck; let txt = "x" + luck.toFixed(1); const st = document.getElementById('heaven-status'); if(bonusSystem.currentLuck > 0) { st.style.display = 'block'; let color = "#00ff00"; if (bonusSystem.currentLuck >= 600000) color = "#9400d3"; else if (bonusSystem.currentLuck >= 500000) color = "#ffd700"; else if (bonusSystem.currentLuck >= 150000) color = "#ff00ff"; st.style.color = color; let qText = bonusSystem.queue.length > 0 ? ` (+${bonusSystem.queue.length} rolls)` : ""; st.innerText = `LUCK BOOST +${(bonusSystem.currentLuck/1000).toFixed(0)}K${qText}`; txt += ` (+${bonusSystem.currentLuck})`; } else { st.style.display = 'none'; } document.getElementById('luck').innerText = txt; const tm = document.getElementById('buff-timer'); if(activePot) tm.innerText = `${activePot.name}: ${Math.ceil((activePot.end - Date.now())/1000)}s`; else tm.innerText = ""; }
+    function openModal(id) { document.getElementById(id).style.display = 'flex'; if(id==='index')renderIndex(); if(id==='craft')renderCraft(); if(id==='storage')renderStorage(); if(id==='biome-info')renderBiomeInfo(); if(id==='cauldron')renderCauldron(); }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+    function triggerReplay(n) { const a = auras.find(x=>x.name===n); if(a){ closeModal('index'); playCutscene(a, true, false, false); } }
+    function devUnlockAll() { auras.forEach(a => { if(data.inv[a.name] === 0) data.inv[a.name] = 1; }); alert("DEV MODE: All Auras Unlocked!"); }
+    function submitCall() { const input = document.getElementById('call-input').value; const sp = document.getElementById('dialog-speaker'); const txt = document.getElementById('dialog-text'); closeModal('call-modal'); openModal('dialog-modal'); if (input === "Soda!I am here!") { sp.innerText = "Soda"; sp.style.color = "#00b0ff"; txt.innerText = "Oh, you found me? I created this universe... I really love this world. Enjoy your stay."; } else if (input === "Stelle!Give me Magic!") { addBonus('heaven', 150000); updateUI(); sp.innerText = "Stelle"; sp.style.color = "#d8b4fe"; txt.innerText = "You know the secret words? Impressive. Take this Heavenly Potion."; } else if (input === "E101!do you hear me?") { data.coins += 50; updateUI(); sp.innerText = "E101"; sp.style.color = "#00ff00"; sp.style.fontFamily = "monospace"; txt.innerText = "Я не знаю какую фразу можно добавить..."; } else if (input === "Vuz!I am Artem!") { addBonus('vuz', 80000); updateUI(); sp.innerText = "Vuz"; sp.style.color = "#ff8c00"; txt.innerText = "уххх артем."; } else { sp.innerText = "..."; sp.style.color = "#aaa"; txt.innerText = "But nobody came..."; } document.getElementById('call-input').value = ""; }
+    function renderIndex() { const g = document.getElementById('index-grid'); g.innerHTML = ""; auras.forEach(a => { const c = data.inv[a.name]; const div = document.createElement('div'); div.className = `card ${c===0?'locked':''}`; let btn = (a.chance >= 1000 && c > 0) ? `<button class="replay-btn" onclick="triggerReplay('${a.name}')">▶ Replay</button>` : ''; let dChance = a.chance; let note = ""; if (currentBiome.buffs[a.name]) { dChance = a.chance / currentBiome.buffs[a.name]; note = `<div style="font-size:10px; color:#4f4;">Biome Buff!</div>`; } div.innerHTML = `<strong style="color:${c?a.color:'#555'}">${c?a.name:'???'}</strong><small>1 in ${dChance.toLocaleString()}</small>${note}<div>x${c}</div>${btn}`; g.appendChild(div); }); }
+    function renderBiomeInfo() { const l = document.getElementById('biome-list'); l.innerHTML = ""; biomes.forEach(b => { let h = ""; for (let [k,v] of Object.entries(b.buffs)) h += `<div class="buff-item"><span class="buff-aura">${k}</span><span class="buff-val">x${v} rate</span></div>`; const d = document.createElement('div'); d.className = 'biome-card'; d.innerHTML = `<h3 style="color:${b.color}">${b.name}</h3>${h||"<small>No buffs</small>"}`; l.appendChild(d); }); }
+    function renderCraft() { const l = document.getElementById('craft-list'); l.innerHTML = ""; gloves.forEach((gl, i) => { const owned = data.ownedGloves.includes(i); const equipped = data.glove === i; let h = i===0?"<span class='req-chip req-ok'>Free</span>":""; if(i>0) for(let [k,v] of Object.entries(gl.cost)) h += `<span class='req-chip ${data.inv[k]>=v?'req-ok':'req-no'}'>${k} ${data.inv[k]}/${v}</span>`; const d = document.createElement('div'); d.className = 'craft-row'; let btnText = "CRAFT"; let btnClass = "craft-btn"; let btnDisabled = false; if (owned) { if (equipped) { btnText = "EQUIPPED"; btnClass += " craft-owned"; } else { btnText = "EQUIP"; } } else { let can = true; for(let [k,v] of Object.entries(gl.cost)) if(data.inv[k]<v) can=false; if(!can) btnDisabled = true; } d.innerHTML = `<div class="craft-icon">🧤</div><div class="craft-info"><div class="craft-name">${gl.name}</div><div class="craft-buff">x${gl.luck}</div><div class="craft-reqs">${h}</div></div><button id="cbtn-${i}" class="${btnClass}" ${btnDisabled ? 'disabled' : ''}>${btnText}</button>`; d.querySelector(`#cbtn-${i}`).onclick = () => { if(owned) { data.glove = i; updateUI(); renderCraft(); } else { doCraft(i); } }; l.appendChild(d); }); }
+    function doCraft(i) { if(data.ownedGloves.includes(i)) return; let g = gloves[i]; let ok = true; for(let [k,v] of Object.entries(g.cost)) if(data.inv[k]<v) ok = false; if(ok) { for(let [k,v] of Object.entries(g.cost)) data.inv[k]-=v; data.ownedGloves.push(i); data.glove=i; renderCraft(); updateUI(); } }
+    function renderStorage() { const g = document.getElementById('storage-grid'); g.innerHTML = ""; let hasItems = false; potions.forEach(p => { const c = data.pots[p.id]; if (c > 0) { hasItems = true; const d = document.createElement('div'); let cl = p.type==='legendary'?'legendary':(p.type==='mythical'?'mythical':''); d.className = `inv-item ${cl}`; d.style.setProperty('--item-color', p.color); d.style.setProperty('--item-color-glow', p.glow||p.color); d.innerHTML = `<div class="inv-badge">x${c}</div><div class="inv-icon">${p.icon}</div><div class="inv-name">${p.name}</div><div class="inv-desc">${p.desc}</div><button class="inv-btn" onclick="usePot('${p.id}')">Use Item</button>`; g.appendChild(d); } }); if(!hasItems) g.innerHTML = "<div class='empty-inv-msg'>Inventory is empty</div>"; }
+    function usePot(id) { if(data.pots[id]>0) { data.pots[id]--; let p = potions.find(x=>x.id===id); alert(p.msg); if(p.type==='time') activePot = { name:p.name, luck:p.luck, end:Date.now()+p.time*1000 }; else { addBonus(p.id, p.bonus); } renderStorage(); updateUI(); } }
+    function renderCauldron() { const l = document.getElementById('cauldron-list'); l.innerHTML = ""; cauldronRecipes.forEach(rec => { const p = potions.find(x => x.id === rec.id); let reqs = ""; let can = true; for(let [k,v] of Object.entries(rec.cost)) { let have = (data.inv[k] !== undefined) ? data.inv[k] : (data.pots[k] || 0); if(have < v) can = false; reqs += `<span class='req-chip ${have>=v?'req-ok':'req-no'}'>${k} ${have}/${v}</span>`; } const div = document.createElement('div'); div.className = 'craft-row cauldron-row'; div.innerHTML = `<div class="craft-icon" style="background:#2a0e2a;">${p.icon}</div><div class="craft-info"><div class="craft-name" style="color:#d8b4fe;">${p.name}</div><div class="craft-reqs">${reqs}</div></div><button class="craft-btn brew-btn" onclick="brewPotion('${rec.id}')" ${can?'':'disabled'}>BREW</button>`; l.appendChild(div); }); }
+    function brewPotion(id) { const r = cauldronRecipes.find(x=>x.id===id); for(let [k,v] of Object.entries(r.cost)) { if(data.inv[k] !== undefined) data.inv[k] -= v; else if(data.pots[k] !== undefined) data.pots[k] -= v; } data.pots[id]++; renderCauldron(); updateUI(); }
+
+    updateBiome(); animateParticles(); setInterval(updateBiome, 60000); setInterval(updateUI, 1000);
+</script>
+</body>
+</html>```
